@@ -61,7 +61,8 @@
       x: W / 2 - 17, y: H - 115, w: 34, h: 51,
       vx: 0, vy: -720, health: 100, ammo: 12,
       facing: 1, grounded: false, shootCooldown: 0,
-      reloadTimer: 0, invuln: 0, muzzle: 0, landed: 0
+      reloadTimer: 0, invuln: 0, muzzle: 0, landed: 0,
+      doubleJumpReady: true
     };
   }
 
@@ -208,6 +209,7 @@
         player.vy = -760;
         player.grounded = true;
         player.landed = .12;
+        player.doubleJumpReady = true;
         dust(player.x + player.w / 2, p.y, 7, "#999b80");
         beep(86, .035, "triangle", .018);
         if (p.type === "fragile") {
@@ -283,6 +285,18 @@
     shake = Math.max(shake, 2.2);
     flash = .12;
     beep(115, .045, "sawtooth", .035);
+  }
+
+  function doubleJump() {
+    if (state !== "playing" || !player.doubleJumpReady) return;
+    player.doubleJumpReady = false;
+    player.vy = -735;
+    player.grounded = false;
+    player.landed = .08;
+    shake = Math.max(shake, 3.5);
+    dust(player.x + player.w / 2, player.y + player.h, 11, "#c4c6af");
+    showToast("ДВОЙНОЙ ПРЫЖОК");
+    beep(215, .09, "triangle", .035);
   }
 
   function updateBullets(dt) {
@@ -643,6 +657,7 @@
   const keyMap = { ArrowLeft: "left", KeyA: "left", ArrowRight: "right", KeyD: "right", Space: "shoot" };
   window.addEventListener("keydown", e => {
     if (keyMap[e.code]) { keys[keyMap[e.code]] = true; e.preventDefault(); }
+    if ((e.code === "KeyW" || e.code === "ArrowUp") && !e.repeat) { doubleJump(); e.preventDefault(); }
     if ((e.code === "Enter" || e.code === "KeyR") && (state === "menu" || state === "gameover")) startGame();
     if ((e.code === "Escape" || e.code === "KeyP") && (state === "playing" || state === "paused")) togglePause();
   });
@@ -661,7 +676,11 @@
 
   document.querySelectorAll("[data-control]").forEach(btn => {
     const control = btn.dataset.control;
-    const down = e => { e.preventDefault(); keys[control] = true; };
+    const down = e => {
+      e.preventDefault();
+      if (control === "jump") doubleJump();
+      else keys[control] = true;
+    };
     const up = e => { e.preventDefault(); keys[control] = false; };
     btn.addEventListener("pointerdown", down);
     btn.addEventListener("pointerup", up);
