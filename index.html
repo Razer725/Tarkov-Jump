@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#0b0d0b" />
+  <title>Tarkov Jump — локальная игра</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="game-shell">
+    <section class="brand" aria-label="Название игры">
+      <div class="brand__eyebrow">NORVINSK REGION // RAID 06:00</div>
+      <h1>TARKOV <span>JUMP</span></h1>
+      <div class="brand__line"></div>
+    </section>
+
+    <section class="game-frame" id="gameFrame">
+      <canvas id="game" width="480" height="720" aria-label="Игровое поле"></canvas>
+
+      <div class="hud" id="hud" aria-hidden="true">
+        <div class="hud__top">
+          <div class="hud-box">
+            <small>ВЫСОТА</small>
+            <strong><span id="scoreValue">0</span> M</strong>
+          </div>
+          <div class="hud-box hud-box--center">
+            <small>РЕЙД</small>
+            <strong id="raidTime">00:00</strong>
+          </div>
+          <div class="hud-box hud-box--right">
+            <small>РЕКОРД</small>
+            <strong><span id="bestValue">0</span> M</strong>
+          </div>
+        </div>
+        <div class="hud__bottom">
+          <div class="status-block">
+            <span class="status-icon">✚</span>
+            <div class="bar"><i id="healthBar"></i></div>
+            <b id="healthValue">100</b>
+          </div>
+          <div class="ammo"><span id="ammoPips"></span><b id="ammoValue">12</b><small>/ ∞</small></div>
+        </div>
+      </div>
+
+      <div class="vignette"></div>
+      <div class="scanlines"></div>
+
+      <div class="screen screen--visible" id="startScreen">
+        <div class="screen__content">
+          <div class="dogtag">KILLA // BOSS</div>
+          <h2>ПУТЬ К ВЫХОДУ</h2>
+          <p>Поднимайся по крышам, отбивайся от диких и доберись до точки эвакуации.</p>
+          <button class="primary-btn" id="startButton"><span>НАЧАТЬ РЕЙД</span><kbd>ENTER</kbd></button>
+          <div class="controls">
+            <div><kbd>A</kbd><kbd>D</kbd><span>Движение</span></div>
+            <div><kbd>←</kbd><kbd>→</kbd><span>Движение</span></div>
+            <div><kbd>SPACE</kbd><span>Огонь</span></div>
+          </div>
+          <small class="hint">Прыжки выполняются автоматически</small>
+        </div>
+      </div>
+
+      <div class="screen" id="pauseScreen">
+        <div class="screen__content screen__content--compact">
+          <div class="dogtag">RAID PAUSED</div>
+          <h2>ПАУЗА</h2>
+          <p>Рейд будет ждать. Пока что.</p>
+          <button class="primary-btn" id="resumeButton"><span>ПРОДОЛЖИТЬ</span><kbd>P</kbd></button>
+        </div>
+      </div>
+
+      <div class="screen" id="gameOverScreen">
+        <div class="screen__content screen__content--compact">
+          <div class="dogtag dogtag--danger">RAID ENDED</div>
+          <h2 id="endTitle">БОЕЦ ПОТЕРЯН</h2>
+          <p id="endText">Тебя не дождались у выхода.</p>
+          <div class="result-grid">
+            <div><small>ВЫСОТА</small><strong id="finalScore">0 M</strong></div>
+            <div><small>УСТРАНЕНО</small><strong id="finalKills">0</strong></div>
+            <div><small>ЛУТ</small><strong id="finalLoot">0</strong></div>
+          </div>
+          <button class="primary-btn" id="restartButton"><span>НОВЫЙ РЕЙД</span><kbd>R</kbd></button>
+        </div>
+      </div>
+
+      <div class="toast" id="toast"></div>
+      <div class="mobile-controls" aria-label="Сенсорное управление">
+        <button data-control="left" aria-label="Влево">◀</button>
+        <button data-control="shoot" class="mobile-controls__shoot" aria-label="Огонь">●</button>
+        <button data-control="right" aria-label="Вправо">▶</button>
+      </div>
+    </section>
+
+    <footer>
+      <span>ESC — ПАУЗА</span>
+      <span class="footer-dot"></span>
+      <span>ЛОКАЛЬНАЯ СБОРКА</span>
+      <button id="soundButton" aria-label="Переключить звук">ЗВУК: ВКЛ</button>
+    </footer>
+  </main>
+  <script src="game.js"></script>
+</body>
+</html>
