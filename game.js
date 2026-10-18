@@ -117,7 +117,12 @@
     platforms.push(platform);
 
     if (progress > 700 && Math.random() < Math.min(.09 + progress / 25000, .24) && type !== "fragile") {
-      enemies.push({ x: platform.x + platform.w / 2 - 15, y: y - 43, w: 30, h: 43, hp: progress > 3200 ? 2 : 1, cooldown: rand(.8, 2.2), phase: Math.random() * 8, platform });
+      const enemyHp = progress > 3200 ? 2 : 1;
+      enemies.push({
+        x: platform.x + platform.w / 2 - 15, y: y - 43, w: 30, h: 43,
+        hp: enemyHp, maxHp: enemyHp, hitFlash: 0,
+        cooldown: rand(.8, 2.2), phase: Math.random() * 8, platform
+      });
     }
     if (type === "supply") {
       pickups.push({ x: center - 10, y: y - 24, w: 20, h: 20, type: Math.random() < .55 ? "ammo" : "med", taken: false, phase: Math.random() * 6 });
@@ -192,6 +197,7 @@
     player.vx = clamp(player.vx, -285, 285);
     player.vy += 1850 * dt;
     const oldY = player.y;
+    player.previousY = oldY;
     player.x += player.vx * dt;
     player.y += player.vy * dt;
 
@@ -236,6 +242,7 @@
       const shift = cameraLine - player.y;
       player.y = cameraLine;
       cameraY += shift;
+      player.previousY += shift;
       score = Math.max(score, cameraY * .82);
       for (const p of platforms) p.y += shift;
       for (const e of enemies) e.y += shift;
@@ -280,7 +287,7 @@
     player.shootCooldown = .15;
     player.ammo--;
     player.muzzle = .05;
-    bullets.push({ x: player.x + player.w / 2 + player.facing * 12, y: player.y + 16, vx: player.facing * 500, vy: -210, friendly: true, life: 1.15 });
+    bullets.push({ x: player.x + player.w / 2 + player.facing * 12, y: player.y + 16, w: 4, h: 4, vx: player.facing * 500, vy: -210, friendly: true, life: 1.15 });
     player.vx -= player.facing * 15;
     shake = Math.max(shake, 2.2);
     flash = .12;
@@ -301,13 +308,23 @@
 
   function updateBullets(dt) {
     for (const b of bullets) {
+      const oldX = b.x;
+      const oldY = b.y;
       b.x += b.vx * dt;
       b.y += b.vy * dt;
       b.life -= dt;
+      // След между прошлой и новой позицией не даёт быстрой пуле пролететь сквозь цель.
+      const hitbox = {
+        x: Math.min(oldX, b.x) - b.w / 2,
+        y: Math.min(oldY, b.y) - b.h / 2,
+        w: Math.abs(b.x - oldX) + b.w,
+        h: Math.abs(b.y - oldY) + b.h
+      };
       if (b.friendly) {
         for (const e of enemies) {
-          if (e.hp > 0 && overlaps(b, e)) {
+          if (e.hp > 0 && overlaps(hitbox, e)) {
             e.hp--;
+            e.hitFlash = .12;
             b.life = 0;
             sparks(b.x, b.y, "#c6a56c");
             if (e.hp <= 0) {
@@ -320,7 +337,7 @@
             break;
           }
         }
-      } else if (player.invuln <= 0 && overlaps(b, player)) {
+      } else if (player.invuln <= 0 && overlaps(hitbox, player)) {
         b.life = 0;
         damagePlayer(18);
       }
@@ -330,16 +347,37 @@
   function updateEnemies(dt) {
     for (const e of enemies) {
       if (e.hp <= 0) continue;
+      e.hitFlash = Math.max(0, e.hitFlash - dt);
       if (e.platform && !e.platform.broken) {
         e.x = e.platform.x + e.platform.w / 2 - e.w / 2 + Math.sin(gameTime * 1.4 + e.phase) * Math.min(12, e.platform.w / 5);
         e.y = e.platform.y - e.h;
       }
+
+      const previousBottom = player.previousY + player.h;
+      const playerBottom = player.y + player.h;
+      const aboveEnemy = previousBottom <= e.y + 10;
+      const crossesHead = playerBottom >= e.y;
+      const horizontalHit = player.x + player.w - 6 > e.x && player.x + 6 < e.x + e.w;
+      if (player.vy > 0 && aboveEnemy && crossesHead && horizontalHit) {
+        e.hp = 0;
+        player.y = e.y - player.h - 1;
+        player.vy = -720;
+        player.doubleJumpReady = true;
+        kills++;
+        loot++;
+        shake = Math.max(shake, 6);
+        dust(e.x + e.w / 2, e.y + 4, 12, "#a9aa8d");
+        showToast("ВРАГ РАЗДАВЛЕН // +ЛУТ");
+        beep(62, .14, "square", .035);
+        continue;
+      }
+
       e.cooldown -= dt;
       const dx = player.x - e.x;
       const dy = player.y - e.y;
       if (e.cooldown <= 0 && Math.abs(dx) < 290 && Math.abs(dy) < 350) {
         const len = Math.hypot(dx, dy) || 1;
-        bullets.push({ x: e.x + e.w / 2, y: e.y + 18, vx: dx / len * 250, vy: dy / len * 250, friendly: false, life: 2 });
+        bullets.push({ x: e.x + e.w / 2, y: e.y + 18, w: 4, h: 4, vx: dx / len * 250, vy: dy / len * 250, friendly: false, life: 2 });
         e.cooldown = rand(1.45, 2.5);
         beep(75, .055, "sawtooth", .02);
       }
@@ -545,7 +583,17 @@
       ctx.fillStyle = "#22251f"; ctx.fillRect(7, 8, 18, 6);
       ctx.fillStyle = "#262a23"; ctx.fillRect(22, 22, 20, 5);
       ctx.fillStyle = "#696953"; ctx.fillRect(38, 23, 8, 2);
+      if (e.hitFlash > 0) {
+        ctx.fillStyle = "rgba(235,225,183,.55)";
+        ctx.fillRect(3, 5, 27, 35);
+      }
       ctx.restore();
+
+      // Полоса здоровья всегда остаётся читаемой независимо от направления врага.
+      const hpRatio = clamp(e.hp / e.maxHp, 0, 1);
+      ctx.fillStyle = "rgba(4,6,4,.82)"; ctx.fillRect(e.x - 1, e.y - 8, e.w + 2, 5);
+      ctx.fillStyle = hpRatio > .5 ? "#9ca77b" : hpRatio > .25 ? "#bd8a4c" : "#a5483b";
+      ctx.fillRect(e.x, e.y - 7, e.w * hpRatio, 3);
     }
   }
 
