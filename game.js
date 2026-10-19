@@ -84,7 +84,7 @@
       facing: 1, grounded: false, shootCooldown: 0,
       reloadTimer: 0, invuln: 0, muzzle: 0, landed: 0,
       doubleJumpReady: true, burstRemaining: 0,
-      armorTier: 0, helmetTier: 0
+      armorTier: 0, helmetTier: 0, armorHits: 0, helmetHits: 0
     };
   }
 
@@ -405,7 +405,7 @@
         }
       } else if (player.invuln <= 0 && overlaps(hitbox, player)) {
         b.life = 0;
-        damagePlayer(18, b.y < player.y + 23 ? "helmet" : "armor");
+        damagePlayer(18, b.y < player.y + 23 ? "helmet" : "armor", true);
       }
     }
   }
@@ -476,17 +476,35 @@
     const label = item.gearType === "helmet" ? "ШЛЕМ" : "БРОНЯ";
     if (item.tier >= player[key]) {
       player[key] = item.tier;
+      if (item.gearType === "armor") player.armorHits = 0;
+      if (item.gearType === "helmet") player.helmetHits = 0;
       showToast(`${label}: ${EQUIPMENT[item.tier].name} // -${item.tier * 20}% УРОНА`);
     } else {
       showToast(`${label} ХУЖЕ ТЕКУЩЕГО // ОСТАВЛЕН`);
     }
   }
 
-  function damagePlayer(amount, protectedZone = "armor") {
+  function damagePlayer(amount, protectedZone = "armor", countsAsShot = false) {
     if (enemyInvincibility) return;
     const tier = protectedZone === "helmet" ? player.helmetTier : player.armorTier;
     const reduction = tier ? EQUIPMENT[tier].reduction : 0;
     player.health -= amount * (1 - reduction);
+    if (countsAsShot && protectedZone === "armor" && player.armorTier > 0) {
+      player.armorHits++;
+      if (player.armorHits >= 3) {
+        player.armorTier--;
+        player.armorHits = 0;
+        showToast(player.armorTier > 0 ? `БРОНЯ ПОВРЕЖДЕНА // ТИР ${player.armorTier}` : "БРОНЯ УНИЧТОЖЕНА");
+      }
+    }
+    if (countsAsShot && protectedZone === "helmet" && player.helmetTier > 0) {
+      player.helmetHits++;
+      if (player.helmetHits >= 3) {
+        player.helmetTier--;
+        player.helmetHits = 0;
+        showToast(player.helmetTier > 0 ? `ШЛЕМ ПОВРЕЖДЁН // ТИР ${player.helmetTier}` : "ШЛЕМ УНИЧТОЖЕН");
+      }
+    }
     player.invuln = .75;
     player.vx *= -1.4;
     player.vy = Math.min(player.vy, -260);
@@ -784,8 +802,8 @@
     ui.health.textContent = Math.max(0, Math.ceil(player.health));
     ui.healthBar.style.width = `${Math.max(0, player.health)}%`;
     ui.healthBar.style.background = player.health < 35 ? "#a64b3c" : "#afb28d";
-    ui.armor.textContent = player.armorTier ? `БРОНЯ ${player.armorTier} // -${player.armorTier * 20}%` : "БРОНЯ — НЕТ";
-    ui.helmet.textContent = player.helmetTier ? `ШЛЕМ ${player.helmetTier} // -${player.helmetTier * 20}%` : "ШЛЕМ — НЕТ";
+    ui.armor.textContent = player.armorTier ? `БРОНЯ ${player.armorTier} [${player.armorHits}/3] // -${player.armorTier * 20}%` : "БРОНЯ — НЕТ";
+    ui.helmet.textContent = player.helmetTier ? `ШЛЕМ ${player.helmetTier} [${player.helmetHits}/3] // -${player.helmetTier * 20}%` : "ШЛЕМ — НЕТ";
     const weapon = WEAPONS[player.weapon];
     ui.weapon.textContent = weapon.name;
     ui.weapon.style.color = weapon.color;
