@@ -74,6 +74,8 @@ canvas { display: block; width: 100%; height: 100%; }
 .hud-box--right { text-align: right; }
 .hud__bottom { position: absolute; bottom: 13px; left: 14px; right: 14px; display: flex; align-items: end; justify-content: space-between; }
 .status-block { display: flex; align-items: center; gap: 7px; filter: drop-shadow(0 2px 2px #000); }
+.survival-status { display: grid; gap: 5px; }
+.equipment-status { display: flex; gap: 8px; padding-left: 24px; color: #9da185; font: 700 7px/1 monospace; letter-spacing: .06em; text-shadow: 0 2px 2px #000; }
 .status-icon { font-size: 17px; color: #b7bba0; }
 .bar { display: block; width: 82px; height: 6px; background: rgba(0,0,0,.55); border: 1px solid #5c5e50; }
 .bar i { display: block; height: 100%; width: 100%; background: #afb28d; transition: width .2s, background .2s; }
@@ -107,6 +109,17 @@ canvas { display: block; width: 100%; height: 100%; }
 .screen__content--compact h2 { font-size: 44px; }
 .dogtag { display: inline-block; border: 1px solid #777a64; padding: 5px 10px; color: #b2b697; background: rgba(0,0,0,.25); font: 700 9px monospace; letter-spacing: .2em; transform: rotate(-1deg); }
 .dogtag--danger { border-color: #744638; color: #c36b58; }
+.mode-toggle { display: flex; align-items: center; gap: 10px; margin: 0 0 13px; padding: 10px 12px; border: 1px solid #424638; background: rgba(0,0,0,.24); text-align: left; cursor: pointer; transition: border-color .15s, background .15s; }
+.mode-toggle:hover { border-color: #71765e; background: rgba(52,57,45,.34); }
+.mode-toggle input { position: absolute; opacity: 0; pointer-events: none; }
+.mode-toggle__check { flex: 0 0 18px; width: 18px; height: 18px; display: grid; place-items: center; border: 1px solid #777b65; background: #171a15; }
+.mode-toggle__check::after { content: "✓"; color: #e0e2c7; font: 700 14px/1 monospace; opacity: 0; transform: scale(.6); transition: opacity .12s, transform .12s; }
+.mode-toggle input:checked + .mode-toggle__check { border-color: #afb38b; background: #4a503d; }
+.mode-toggle input:checked + .mode-toggle__check::after { opacity: 1; transform: scale(1); }
+.mode-toggle input:focus-visible + .mode-toggle__check { outline: 2px solid #c8cba8; outline-offset: 2px; }
+.mode-toggle > span:last-child { display: grid; gap: 3px; }
+.mode-toggle strong { color: #c5c8ab; font: 700 10px/1 monospace; letter-spacing: .08em; }
+.mode-toggle small { color: #777b69; font: 8px/1.2 monospace; }
 .primary-btn { width: 100%; height: 54px; display: flex; align-items: center; justify-content: space-between; padding: 0 13px 0 20px; border: 1px solid #8f9472; color: #e3e1d0; background: linear-gradient(110deg, #4a503d, #2e3328); font: 800 14px monospace; letter-spacing: .11em; cursor: pointer; box-shadow: 0 8px 25px rgba(0,0,0,.38); transition: filter .15s, transform .15s; }
 .primary-btn:hover { filter: brightness(1.22); transform: translateY(-1px); }
 .primary-btn:active { transform: translateY(1px); }

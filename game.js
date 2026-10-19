@@ -12,6 +12,11 @@
     smg: { name: "ПИСТОЛЕТ-ПУЛЕМЁТ", ammo: 24, reload: 1.05, cooldown: .075, burst: 3, burstPause: .32, pellets: 1, speed: 570, climb: -190, recoil: 9, color: "#86a6a0" },
     machinegun: { name: "ПУЛЕМЁТ", ammo: 40, reload: 1.55, cooldown: .065, pellets: 1, speed: 610, climb: -170, recoil: 7, color: "#a2a873" }
   };
+  const EQUIPMENT = {
+    1: { name: "ЛЁГКИЙ", reduction: .2, color: "#879174" },
+    2: { name: "СРЕДНИЙ", reduction: .4, color: "#a18e62" },
+    3: { name: "ТЯЖЁЛЫЙ", reduction: .6, color: "#9b6651" }
+  };
 
   const ui = {
     hud: document.getElementById("hud"),
@@ -26,13 +31,16 @@
     ammo: document.getElementById("ammoValue"),
     ammoPips: document.getElementById("ammoPips"),
     weapon: document.getElementById("weaponName"),
+    armor: document.getElementById("armorStatus"),
+    helmet: document.getElementById("helmetStatus"),
     finalScore: document.getElementById("finalScore"),
     finalKills: document.getElementById("finalKills"),
     finalLoot: document.getElementById("finalLoot"),
     endTitle: document.getElementById("endTitle"),
     endText: document.getElementById("endText"),
     toast: document.getElementById("toast"),
-    sound: document.getElementById("soundButton")
+    sound: document.getElementById("soundButton"),
+    enemyInvincibility: document.getElementById("enemyInvincibility")
   };
 
   const keys = { left: false, right: false, shoot: false };
@@ -47,12 +55,15 @@
   let shake = 0;
   let flash = 0;
   let soundOn = localStorage.getItem("tarkovJumpSound") !== "off";
+  let enemyInvincibility = localStorage.getItem("tarkovJumpEnemyInvincibility") === "on";
   let audioCtx = null;
   let nextPlatformY = 0;
   let toastTimer = 0;
   let extractionSpawned = false;
   let weaponDropIndex = 0;
   let nextWeaponDrop = 1350;
+  let equipmentDropIndex = 0;
+  let nextEquipmentDrop = 520;
 
   let player;
   let platforms = [];
@@ -64,6 +75,7 @@
 
   ui.best.textContent = best;
   ui.sound.textContent = `ЗВУК: ${soundOn ? "ВКЛ" : "ВЫКЛ"}`;
+  ui.enemyInvincibility.checked = enemyInvincibility;
 
   function createPlayer() {
     return {
@@ -71,7 +83,8 @@
       vx: 0, vy: -720, health: 100, weapon: "rifle", ammo: WEAPONS.rifle.ammo,
       facing: 1, grounded: false, shootCooldown: 0,
       reloadTimer: 0, invuln: 0, muzzle: 0, landed: 0,
-      doubleJumpReady: true, burstRemaining: 0
+      doubleJumpReady: true, burstRemaining: 0,
+      armorTier: 0, helmetTier: 0
     };
   }
 
@@ -93,6 +106,8 @@
     extractionSpawned = false;
     weaponDropIndex = 0;
     nextWeaponDrop = 1350;
+    equipmentDropIndex = 0;
+    nextEquipmentDrop = 520;
     nextPlatformY = H - 60;
 
     platforms.push({ x: W / 2 - 65, y: H - 55, w: 130, h: 15, type: "start", broken: false, seed: 1 });
@@ -135,7 +150,10 @@
         cooldown: rand(.8, 2.2), phase: Math.random() * 8, platform
       });
     }
-    if (progress >= nextWeaponDrop) {
+    if (progress >= nextEquipmentDrop && equipmentDropIndex < 6) {
+      spawnEquipmentPickup(center, y);
+      nextEquipmentDrop += 720;
+    } else if (progress >= nextWeaponDrop) {
       spawnWeaponPickup(center, y);
       nextWeaponDrop += 3450;
     } else if (type === "supply") {
@@ -156,6 +174,17 @@
     pickups.push({ x: center - 15, y: y - 25, w: 30, h: 16, type: "weapon", weaponType, taken: false, phase: Math.random() * 6 });
   }
 
+  function spawnEquipmentPickup(center, y) {
+    const gearType = equipmentDropIndex % 2 === 0 ? "armor" : "helmet";
+    const tier = Math.min(3, Math.floor(equipmentDropIndex / 2) + 1);
+    equipmentDropIndex++;
+    const size = gearType === "armor" ? { w: 26, h: 22 } : { w: 22, h: 19 };
+    pickups.push({
+      x: center - size.w / 2, y: y - size.h - 6, w: size.w, h: size.h,
+      type: "equipment", gearType, tier, taken: false, phase: Math.random() * 6
+    });
+  }
+
   function startGame() {
     initAudio();
     resetGame();
@@ -164,7 +193,7 @@
     ui.hud.classList.add("active");
     lastTime = performance.now();
     beep(130, .06, "sawtooth", .035);
-    showToast("РЕЙД НАЧАТ // ВЫХОД: КРЫША");
+    showToast(enemyInvincibility ? "РЕЙД НАЧАТ // НЕУЯЗВИМОСТЬ ВКЛ" : "РЕЙД НАЧАТ // ВЫХОД: КРЫША");
   }
 
   function hideScreens() {
@@ -376,7 +405,7 @@
         }
       } else if (player.invuln <= 0 && overlaps(hitbox, player)) {
         b.life = 0;
-        damagePlayer(18);
+        damagePlayer(18, b.y < player.y + 23 ? "helmet" : "armor");
       }
     }
   }
@@ -436,13 +465,28 @@
           player.burstRemaining = 0;
           showToast(`${WEAPONS[p.weaponType].name} ПОДОБРАН`);
         }
+        if (p.type === "equipment") equipItem(p);
         beep(460, .08, "triangle", .035);
       }
     }
   }
 
-  function damagePlayer(amount) {
-    player.health -= amount;
+  function equipItem(item) {
+    const key = item.gearType === "helmet" ? "helmetTier" : "armorTier";
+    const label = item.gearType === "helmet" ? "ШЛЕМ" : "БРОНЯ";
+    if (item.tier >= player[key]) {
+      player[key] = item.tier;
+      showToast(`${label}: ${EQUIPMENT[item.tier].name} // -${item.tier * 20}% УРОНА`);
+    } else {
+      showToast(`${label} ХУЖЕ ТЕКУЩЕГО // ОСТАВЛЕН`);
+    }
+  }
+
+  function damagePlayer(amount, protectedZone = "armor") {
+    if (enemyInvincibility) return;
+    const tier = protectedZone === "helmet" ? player.helmetTier : player.armorTier;
+    const reduction = tier ? EQUIPMENT[tier].reduction : 0;
+    player.health -= amount * (1 - reduction);
     player.invuln = .75;
     player.vx *= -1.4;
     player.vy = Math.min(player.vy, -260);
@@ -569,37 +613,51 @@
     ctx.fillStyle = "#141714"; ctx.fillRect(8, 43, 9, 8); ctx.fillRect(22, 43, 9, 8);
     ctx.fillStyle = "#b9baad"; ctx.fillRect(9, 43, 2, 7); ctx.fillRect(23, 43, 2, 7);
 
-    // Бронежилет и разгрузка.
-    ctx.fillStyle = "#41473c"; ctx.fillRect(10, 24, 20, 18);
-    ctx.fillStyle = "#292e28"; ctx.fillRect(12, 29, 7, 10); ctx.fillRect(21, 29, 7, 10);
-    ctx.strokeStyle = "#626758"; ctx.lineWidth = 1; ctx.strokeRect(10.5, 24.5, 19, 17);
+    // Без экипировки персонаж остаётся в спортивном костюме. Каждый тир
+    // расширяет силуэт: от лёгкой плитоноски до тяжёлой штурмовой брони.
+    if (p.armorTier > 0) {
+      const tier = p.armorTier;
+      const inset = tier === 1 ? 10 : tier === 2 ? 7 : 3;
+      const width = tier === 1 ? 20 : tier === 2 ? 26 : 34;
+      const top = tier === 1 ? 25 : 22;
+      const height = tier === 1 ? 16 : tier === 2 ? 21 : 25;
+      ctx.fillStyle = tier === 1 ? "#535d48" : tier === 2 ? "#464b3e" : "#343832";
+      ctx.fillRect(inset, top, width, height);
+      ctx.fillStyle = tier === 3 ? "#20241f" : "#2b3028";
+      ctx.fillRect(inset + 3, top + 6, width / 2 - 4, height - 9);
+      ctx.fillRect(20, top + 6, width / 2 - 4, height - 9);
+      ctx.strokeStyle = EQUIPMENT[tier].color; ctx.lineWidth = 1; ctx.strokeRect(inset + .5, top + .5, width - 1, height - 1);
+      if (tier >= 2) {
+        ctx.fillStyle = "#383d34"; ctx.fillRect(2, 23, 6, tier === 3 ? 20 : 14); ctx.fillRect(31, 23, 6, tier === 3 ? 20 : 14);
+      }
+      if (tier === 3) {
+        ctx.fillStyle = "#252923"; ctx.fillRect(5, 43, 29, 6);
+        ctx.fillStyle = "#4d5144"; ctx.fillRect(16, 25, 7, 16);
+      }
+    }
 
-    // Чёрный «Алтын»: глубокий купол и массивное бронезабрало.
-    const helmetGradient = ctx.createLinearGradient(6, 2, 31, 21);
-    helmetGradient.addColorStop(0, "#343936");
-    helmetGradient.addColorStop(.45, "#161a18");
-    helmetGradient.addColorStop(1, "#050706");
-    ctx.fillStyle = helmetGradient;
-    ctx.beginPath();
-    ctx.arc(19, 13, 14, Math.PI, Math.PI * 2);
-    ctx.lineTo(33, 20); ctx.lineTo(29, 24); ctx.lineTo(8, 24); ctx.lineTo(5, 19);
-    ctx.closePath(); ctx.fill();
-    ctx.strokeStyle = "#464c47"; ctx.lineWidth = 1;
-    ctx.stroke();
-
-    // Три фирменные параллельные полосы строго по центру купола.
-    ctx.fillStyle = "#e5e5db";
-    ctx.fillRect(14, 2, 2.5, 9);
-    ctx.fillRect(18, 1, 2.5, 10);
-    ctx.fillRect(22, 2, 2.5, 9);
-
-    // Забрало, смотровая щель и боковые крепления «Алтына».
-    ctx.fillStyle = "#090b0a"; ctx.fillRect(7, 11, 25, 12);
-    ctx.fillStyle = "#030504"; ctx.fillRect(9, 13, 23, 7);
-    ctx.fillStyle = "#59625c"; ctx.fillRect(19, 14, 12, 3);
-    ctx.fillStyle = "rgba(193,207,196,.3)"; ctx.fillRect(21, 14, 8, 1);
-    ctx.fillStyle = "#1a1e1b"; ctx.fillRect(5, 18, 5, 7); ctx.fillRect(29, 18, 5, 7);
-    ctx.fillStyle = "#777d74"; ctx.fillRect(7, 20, 2, 2); ctx.fillRect(30, 20, 2, 2);
+    if (p.helmetTier === 0) {
+      ctx.fillStyle = "#c39a72"; ctx.beginPath(); ctx.arc(19, 14, 10, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#29251f"; ctx.beginPath(); ctx.arc(19, 11, 10, Math.PI, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#25241f"; ctx.fillRect(27, 13, 3, 5);
+    } else {
+      const tier = p.helmetTier;
+      const radius = tier === 1 ? 11 : tier === 2 ? 13 : 15;
+      const centerX = 19;
+      ctx.fillStyle = tier === 1 ? "#59614f" : tier === 2 ? "#3d433a" : "#171b18";
+      ctx.beginPath(); ctx.arc(centerX, 14, radius, Math.PI, Math.PI * 2);
+      ctx.lineTo(centerX + radius, tier === 1 ? 18 : 22);
+      ctx.lineTo(centerX - radius, tier === 1 ? 18 : 22); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = EQUIPMENT[tier].color; ctx.lineWidth = 1; ctx.stroke();
+      if (tier >= 2) {
+        ctx.fillStyle = "#111411"; ctx.fillRect(7, 13, 25, tier === 3 ? 10 : 6);
+        ctx.fillStyle = "#667068"; ctx.fillRect(20, 14, 10, 2);
+      }
+      if (tier === 3) {
+        ctx.fillStyle = "#202520"; ctx.fillRect(4, 18, 6, 8); ctx.fillRect(29, 18, 6, 8);
+        ctx.fillStyle = "#777d74"; ctx.fillRect(6, 21, 2, 2); ctx.fillRect(31, 21, 2, 2);
+      }
+    }
 
     // Текущее оружие меняет силуэт после подбора.
     const gunLength = p.weapon === "shotgun" ? 31 : p.weapon === "machinegun" ? 29 : p.weapon === "smg" ? 18 : 22;
@@ -654,7 +712,7 @@
     for (const p of pickups) {
       const bob = Math.sin(gameTime * 3 + p.phase) * 3;
       ctx.save(); ctx.translate(p.x, p.y + bob);
-      ctx.shadowColor = p.type === "loot" ? "rgba(213,178,85,.7)" : p.type === "weapon" ? WEAPONS[p.weaponType].color : "rgba(148,160,112,.55)"; ctx.shadowBlur = 10;
+      ctx.shadowColor = p.type === "loot" ? "rgba(213,178,85,.7)" : p.type === "weapon" ? WEAPONS[p.weaponType].color : p.type === "equipment" ? EQUIPMENT[p.tier].color : "rgba(148,160,112,.55)"; ctx.shadowBlur = 10;
       if (p.type === "med") {
         ctx.fillStyle = "#777a62"; ctx.fillRect(0, 3, 20, 15); ctx.fillStyle = "#ae5b4b"; ctx.fillRect(8, 6, 4, 9); ctx.fillRect(5, 9, 10, 3);
       } else if (p.type === "ammo") {
@@ -669,6 +727,21 @@
         ctx.shadowColor = "transparent";
         ctx.fillStyle = weapon.color; ctx.font = "bold 7px monospace"; ctx.textAlign = "center";
         ctx.fillText(p.weaponType === "shotgun" ? "ДР" : p.weaponType === "smg" ? "ПП" : "ПЛ", 15, -7);
+      } else if (p.type === "equipment") {
+        const gear = EQUIPMENT[p.tier];
+        ctx.fillStyle = "rgba(12,15,12,.82)"; ctx.fillRect(-4, -5, p.w + 8, p.h + 9);
+        ctx.strokeStyle = gear.color; ctx.lineWidth = 1; ctx.strokeRect(-3.5, -4.5, p.w + 7, p.h + 8);
+        ctx.fillStyle = gear.color;
+        if (p.gearType === "armor") {
+          const shoulder = p.tier * 2;
+          ctx.fillRect(4 - shoulder, 3, p.w - 8 + shoulder * 2, p.h - 5);
+          ctx.fillStyle = "#292e28"; ctx.fillRect(7, 7, p.w - 14, p.h - 10);
+        } else {
+          ctx.beginPath(); ctx.arc(p.w / 2, 10, 7 + p.tier, Math.PI, Math.PI * 2); ctx.lineTo(p.w / 2 + 7 + p.tier, 15); ctx.lineTo(p.w / 2 - 7 - p.tier, 15); ctx.closePath(); ctx.fill();
+          if (p.tier >= 2) { ctx.fillStyle = "#171a17"; ctx.fillRect(4, 9, p.w - 8, p.tier === 3 ? 7 : 4); }
+        }
+        ctx.shadowColor = "transparent"; ctx.fillStyle = gear.color; ctx.font = "bold 7px monospace"; ctx.textAlign = "center";
+        ctx.fillText(`${p.gearType === "armor" ? "Б" : "Ш"}${p.tier}`, p.w / 2, -7);
       } else {
         ctx.fillStyle = "#a98c4d"; ctx.beginPath(); ctx.moveTo(8, 0); ctx.lineTo(16, 5); ctx.lineTo(13, 16); ctx.lineTo(3, 14); ctx.lineTo(0, 5); ctx.closePath(); ctx.fill();
       }
@@ -711,6 +784,8 @@
     ui.health.textContent = Math.max(0, Math.ceil(player.health));
     ui.healthBar.style.width = `${Math.max(0, player.health)}%`;
     ui.healthBar.style.background = player.health < 35 ? "#a64b3c" : "#afb28d";
+    ui.armor.textContent = player.armorTier ? `БРОНЯ ${player.armorTier} // -${player.armorTier * 20}%` : "БРОНЯ — НЕТ";
+    ui.helmet.textContent = player.helmetTier ? `ШЛЕМ ${player.helmetTier} // -${player.helmetTier * 20}%` : "ШЛЕМ — НЕТ";
     const weapon = WEAPONS[player.weapon];
     ui.weapon.textContent = weapon.name;
     ui.weapon.style.color = weapon.color;
@@ -764,17 +839,25 @@
 
   const keyMap = { ArrowLeft: "left", KeyA: "left", ArrowRight: "right", KeyD: "right", Space: "shoot" };
   window.addEventListener("keydown", e => {
+    if (e.target === ui.enemyInvincibility) return;
     if (keyMap[e.code]) { keys[keyMap[e.code]] = true; e.preventDefault(); }
     if ((e.code === "KeyW" || e.code === "ArrowUp") && !e.repeat) { doubleJump(); e.preventDefault(); }
     if ((e.code === "Enter" || e.code === "KeyR") && (state === "menu" || state === "gameover")) startGame();
     if ((e.code === "Escape" || e.code === "KeyP") && (state === "playing" || state === "paused")) togglePause();
   });
-  window.addEventListener("keyup", e => { if (keyMap[e.code]) { keys[keyMap[e.code]] = false; e.preventDefault(); } });
+  window.addEventListener("keyup", e => {
+    if (e.target === ui.enemyInvincibility) return;
+    if (keyMap[e.code]) { keys[keyMap[e.code]] = false; e.preventDefault(); }
+  });
   window.addEventListener("blur", () => { keys.left = keys.right = keys.shoot = false; if (state === "playing") togglePause(); });
 
   document.getElementById("startButton").addEventListener("click", startGame);
   document.getElementById("restartButton").addEventListener("click", startGame);
   document.getElementById("resumeButton").addEventListener("click", togglePause);
+  ui.enemyInvincibility.addEventListener("change", () => {
+    enemyInvincibility = ui.enemyInvincibility.checked;
+    localStorage.setItem("tarkovJumpEnemyInvincibility", enemyInvincibility ? "on" : "off");
+  });
   ui.sound.addEventListener("click", () => {
     soundOn = !soundOn;
     localStorage.setItem("tarkovJumpSound", soundOn ? "on" : "off");

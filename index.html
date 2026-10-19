@@ -34,10 +34,16 @@
           </div>
         </div>
         <div class="hud__bottom">
-          <div class="status-block">
-            <span class="status-icon">✚</span>
-            <div class="bar"><i id="healthBar"></i></div>
-            <b id="healthValue">100</b>
+          <div class="survival-status">
+            <div class="status-block">
+              <span class="status-icon">✚</span>
+              <div class="bar"><i id="healthBar"></i></div>
+              <b id="healthValue">100</b>
+            </div>
+            <div class="equipment-status">
+              <small id="armorStatus">БРОНЯ — НЕТ</small>
+              <small id="helmetStatus">ШЛЕМ — НЕТ</small>
+            </div>
           </div>
           <div class="weapon-status">
             <small id="weaponName">АВТОМАТ</small>
@@ -54,6 +60,14 @@
           <div class="dogtag">KILLA // BOSS</div>
           <h2>ПУТЬ К ВЫХОДУ</h2>
           <p>Поднимайся по крышам, отбивайся от диких и доберись до точки эвакуации.</p>
+          <label class="mode-toggle" for="enemyInvincibility">
+            <input type="checkbox" id="enemyInvincibility" />
+            <span class="mode-toggle__check" aria-hidden="true"></span>
+            <span>
+              <strong>НЕУЯЗВИМОСТЬ ОТ ВРАГОВ</strong>
+              <small>Пули и столкновения не наносят урон</small>
+            </span>
+          </label>
           <button class="primary-btn" id="startButton"><span>НАЧАТЬ РЕЙД</span><kbd>ENTER</kbd></button>
           <div class="controls">
             <div><kbd>A</kbd><kbd>D</kbd><span>Движение</span></div>
