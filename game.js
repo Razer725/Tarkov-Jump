@@ -6,6 +6,12 @@
   const W = 480;
   const H = 720;
   const WORLD_GOAL = 5000;
+  const WEAPONS = {
+    rifle: { name: "АВТОМАТ", ammo: 12, reload: 1.1, cooldown: .15, pellets: 1, speed: 540, climb: -210, recoil: 15, color: "#a6a98c" },
+    shotgun: { name: "ДРОБОВИК", ammo: 6, reload: 1.35, cooldown: .62, pellets: 7, speed: 470, climb: -185, spread: 155, recoil: 38, color: "#bd9459" },
+    smg: { name: "ПИСТОЛЕТ-ПУЛЕМЁТ", ammo: 24, reload: 1.05, cooldown: .075, burst: 3, burstPause: .32, pellets: 1, speed: 570, climb: -190, recoil: 9, color: "#86a6a0" },
+    machinegun: { name: "ПУЛЕМЁТ", ammo: 40, reload: 1.55, cooldown: .065, pellets: 1, speed: 610, climb: -170, recoil: 7, color: "#a2a873" }
+  };
 
   const ui = {
     hud: document.getElementById("hud"),
@@ -19,6 +25,7 @@
     healthBar: document.getElementById("healthBar"),
     ammo: document.getElementById("ammoValue"),
     ammoPips: document.getElementById("ammoPips"),
+    weapon: document.getElementById("weaponName"),
     finalScore: document.getElementById("finalScore"),
     finalKills: document.getElementById("finalKills"),
     finalLoot: document.getElementById("finalLoot"),
@@ -44,6 +51,8 @@
   let nextPlatformY = 0;
   let toastTimer = 0;
   let extractionSpawned = false;
+  let weaponDropIndex = 0;
+  let nextWeaponDrop = 1350;
 
   let player;
   let platforms = [];
@@ -59,10 +68,10 @@
   function createPlayer() {
     return {
       x: W / 2 - 17, y: H - 115, w: 34, h: 51,
-      vx: 0, vy: -720, health: 100, ammo: 12,
+      vx: 0, vy: -720, health: 100, weapon: "rifle", ammo: WEAPONS.rifle.ammo,
       facing: 1, grounded: false, shootCooldown: 0,
       reloadTimer: 0, invuln: 0, muzzle: 0, landed: 0,
-      doubleJumpReady: true
+      doubleJumpReady: true, burstRemaining: 0
     };
   }
 
@@ -82,6 +91,8 @@
     shake = 0;
     flash = 0;
     extractionSpawned = false;
+    weaponDropIndex = 0;
+    nextWeaponDrop = 1350;
     nextPlatformY = H - 60;
 
     platforms.push({ x: W / 2 - 65, y: H - 55, w: 130, h: 15, type: "start", broken: false, seed: 1 });
@@ -124,12 +135,25 @@
         cooldown: rand(.8, 2.2), phase: Math.random() * 8, platform
       });
     }
-    if (type === "supply") {
-      pickups.push({ x: center - 10, y: y - 24, w: 20, h: 20, type: Math.random() < .55 ? "ammo" : "med", taken: false, phase: Math.random() * 6 });
+    if (progress >= nextWeaponDrop) {
+      spawnWeaponPickup(center, y);
+      nextWeaponDrop += 3450;
+    } else if (type === "supply") {
+      if (Math.random() < .14) spawnWeaponPickup(center, y);
+      else pickups.push({ x: center - 10, y: y - 24, w: 20, h: 20, type: Math.random() < .55 ? "ammo" : "med", taken: false, phase: Math.random() * 6 });
+    } else if (progress > 350 && Math.random() < .0133) {
+      spawnWeaponPickup(center, y);
     } else if (Math.random() < .075) {
       pickups.push({ x: center - 8, y: y - 19, w: 16, h: 16, type: "loot", taken: false, phase: Math.random() * 6 });
     }
     return center;
+  }
+
+  function spawnWeaponPickup(center, y) {
+    const weaponTypes = ["shotgun", "smg", "machinegun"];
+    const weaponType = weaponTypes[weaponDropIndex % weaponTypes.length];
+    weaponDropIndex++;
+    pickups.push({ x: center - 15, y: y - 25, w: 30, h: 16, type: "weapon", weaponType, taken: false, phase: Math.random() * 6 });
   }
 
   function startGame() {
@@ -226,15 +250,16 @@
       }
     }
 
-    if ((keys.shoot || player.reloadTimer > 0) && player.reloadTimer <= 0) shoot();
+    if ((keys.shoot || player.burstRemaining > 0) && player.reloadTimer <= 0) shoot();
     if (player.ammo <= 0 && player.reloadTimer <= 0) {
-      player.reloadTimer = 1.1;
+      player.reloadTimer = WEAPONS[player.weapon].reload;
+      player.burstRemaining = 0;
       showToast("ПЕРЕЗАРЯДКА");
       beep(160, .04, "square", .018);
     }
     if (player.reloadTimer > 0) {
       player.reloadTimer -= dt;
-      if (player.reloadTimer <= 0) { player.ammo = 12; beep(260, .05, "square", .022); }
+      if (player.reloadTimer <= 0) { player.ammo = WEAPONS[player.weapon].ammo; beep(260, .05, "square", .022); }
     }
 
     const cameraLine = H * .39;
@@ -284,14 +309,26 @@
 
   function shoot() {
     if (player.shootCooldown > 0 || player.ammo <= 0 || player.reloadTimer > 0) return;
-    player.shootCooldown = .15;
+    const weapon = WEAPONS[player.weapon];
+    if (weapon.burst && player.burstRemaining <= 0) player.burstRemaining = weapon.burst;
+    player.burstRemaining = Math.max(0, player.burstRemaining - 1);
+    player.shootCooldown = weapon.cooldown + (player.burstRemaining === 0 && weapon.burst ? weapon.burstPause : 0);
     player.ammo--;
     player.muzzle = .05;
-    bullets.push({ x: player.x + player.w / 2 + player.facing * 12, y: player.y + 16, w: 4, h: 4, vx: player.facing * 500, vy: -210, friendly: true, life: 1.15 });
-    player.vx -= player.facing * 15;
-    shake = Math.max(shake, 2.2);
+    for (let i = 0; i < weapon.pellets; i++) {
+      const spread = weapon.pellets > 1 ? rand(-weapon.spread, weapon.spread) : rand(-12, 12);
+      bullets.push({
+        x: player.x + player.w / 2 + player.facing * 12, y: player.y + 16,
+        w: weapon.pellets > 1 ? 3 : 4, h: weapon.pellets > 1 ? 3 : 4,
+        vx: player.facing * (weapon.speed + rand(-25, 25)), vy: weapon.climb + spread,
+        friendly: true, life: weapon.pellets > 1 ? .62 : 1.15, color: weapon.color
+      });
+    }
+    player.vx -= player.facing * weapon.recoil;
+    shake = Math.max(shake, weapon.pellets > 1 ? 5.5 : player.weapon === "machinegun" ? 2.4 : 2.2);
     flash = .12;
-    beep(115, .045, "sawtooth", .035);
+    const tone = player.weapon === "shotgun" ? 72 : player.weapon === "smg" ? 145 : player.weapon === "machinegun" ? 92 : 115;
+    beep(tone, player.weapon === "shotgun" ? .085 : .045, "sawtooth", player.weapon === "shotgun" ? .055 : .035);
   }
 
   function doubleJump() {
@@ -390,8 +427,15 @@
       if (!p.taken && overlaps(player, p)) {
         p.taken = true;
         if (p.type === "med") { player.health = Math.min(100, player.health + 35); showToast("АПТЕЧКА // +35 HP"); }
-        if (p.type === "ammo") { player.ammo = 12; player.reloadTimer = 0; showToast("БОЕКОМПЛЕКТ ПОПОЛНЕН"); }
+        if (p.type === "ammo") { player.ammo = WEAPONS[player.weapon].ammo; player.reloadTimer = 0; showToast("БОЕКОМПЛЕКТ ПОПОЛНЕН"); }
         if (p.type === "loot") { loot++; score += 45; showToast("ЦЕННЫЙ ЛУТ // +45 M"); }
+        if (p.type === "weapon") {
+          player.weapon = p.weaponType;
+          player.ammo = WEAPONS[p.weaponType].ammo;
+          player.reloadTimer = 0;
+          player.burstRemaining = 0;
+          showToast(`${WEAPONS[p.weaponType].name} ПОДОБРАН`);
+        }
         beep(460, .08, "triangle", .035);
       }
     }
@@ -557,10 +601,11 @@
     ctx.fillStyle = "#1a1e1b"; ctx.fillRect(5, 18, 5, 7); ctx.fillRect(29, 18, 5, 7);
     ctx.fillStyle = "#777d74"; ctx.fillRect(7, 20, 2, 2); ctx.fillRect(30, 20, 2, 2);
 
-    // Компактный автомат.
-    ctx.fillStyle = "#252a22"; ctx.fillRect(26, 25, 22, 6);
-    ctx.fillStyle = "#6a6d5b"; ctx.fillRect(42, 26, 10, 3);
-    ctx.fillStyle = "#121512"; ctx.fillRect(30, 30, 7, 8);
+    // Текущее оружие меняет силуэт после подбора.
+    const gunLength = p.weapon === "shotgun" ? 31 : p.weapon === "machinegun" ? 29 : p.weapon === "smg" ? 18 : 22;
+    ctx.fillStyle = "#252a22"; ctx.fillRect(26, 25, gunLength, p.weapon === "machinegun" ? 7 : 6);
+    ctx.fillStyle = WEAPONS[p.weapon].color; ctx.fillRect(42, 26, gunLength - 12, 3);
+    ctx.fillStyle = "#121512"; ctx.fillRect(30, 30, p.weapon === "machinegun" ? 10 : 7, p.weapon === "machinegun" ? 11 : 8);
     if (p.muzzle > 0) {
       ctx.fillStyle = "#e7c272"; ctx.beginPath(); ctx.moveTo(52, 23); ctx.lineTo(63, 28); ctx.lineTo(52, 33); ctx.fill();
     }
@@ -600,7 +645,7 @@
   function drawBullets() {
     ctx.lineWidth = 2;
     for (const b of bullets) {
-      ctx.strokeStyle = b.friendly ? "rgba(246,213,129,.9)" : "rgba(218,95,66,.82)";
+      ctx.strokeStyle = b.friendly ? (b.color || "rgba(246,213,129,.9)") : "rgba(218,95,66,.82)";
       ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(b.x - b.vx * .025, b.y - b.vy * .025); ctx.stroke();
     }
   }
@@ -609,11 +654,21 @@
     for (const p of pickups) {
       const bob = Math.sin(gameTime * 3 + p.phase) * 3;
       ctx.save(); ctx.translate(p.x, p.y + bob);
-      ctx.shadowColor = p.type === "loot" ? "rgba(213,178,85,.7)" : "rgba(148,160,112,.55)"; ctx.shadowBlur = 10;
+      ctx.shadowColor = p.type === "loot" ? "rgba(213,178,85,.7)" : p.type === "weapon" ? WEAPONS[p.weaponType].color : "rgba(148,160,112,.55)"; ctx.shadowBlur = 10;
       if (p.type === "med") {
         ctx.fillStyle = "#777a62"; ctx.fillRect(0, 3, 20, 15); ctx.fillStyle = "#ae5b4b"; ctx.fillRect(8, 6, 4, 9); ctx.fillRect(5, 9, 10, 3);
       } else if (p.type === "ammo") {
         ctx.fillStyle = "#67654b"; ctx.fillRect(0, 4, 20, 14); ctx.fillStyle = "#a08b55"; for (let i = 3; i < 18; i += 5) ctx.fillRect(i, 1, 2, 8);
+      } else if (p.type === "weapon") {
+        const weapon = WEAPONS[p.weaponType];
+        ctx.fillStyle = "rgba(12,15,12,.78)"; ctx.fillRect(-3, -4, 36, 23);
+        ctx.strokeStyle = weapon.color; ctx.lineWidth = 1; ctx.strokeRect(-2.5, -3.5, 35, 22);
+        ctx.fillStyle = "#30362e"; ctx.fillRect(1, 5, 23, 5);
+        ctx.fillStyle = weapon.color; ctx.fillRect(20, 6, p.weaponType === "shotgun" ? 12 : 8, 2);
+        ctx.fillStyle = "#171a17"; ctx.fillRect(8, 10, p.weaponType === "machinegun" ? 9 : 5, 6);
+        ctx.shadowColor = "transparent";
+        ctx.fillStyle = weapon.color; ctx.font = "bold 7px monospace"; ctx.textAlign = "center";
+        ctx.fillText(p.weaponType === "shotgun" ? "ДР" : p.weaponType === "smg" ? "ПП" : "ПЛ", 15, -7);
       } else {
         ctx.fillStyle = "#a98c4d"; ctx.beginPath(); ctx.moveTo(8, 0); ctx.lineTo(16, 5); ctx.lineTo(13, 16); ctx.lineTo(3, 14); ctx.lineTo(0, 5); ctx.closePath(); ctx.fill();
       }
@@ -656,8 +711,13 @@
     ui.health.textContent = Math.max(0, Math.ceil(player.health));
     ui.healthBar.style.width = `${Math.max(0, player.health)}%`;
     ui.healthBar.style.background = player.health < 35 ? "#a64b3c" : "#afb28d";
+    const weapon = WEAPONS[player.weapon];
+    ui.weapon.textContent = weapon.name;
+    ui.weapon.style.color = weapon.color;
     ui.ammo.textContent = player.reloadTimer > 0 ? "--" : player.ammo;
-    ui.ammoPips.innerHTML = Array.from({ length: 12 }, (_, i) => `<i class="${i >= player.ammo ? "empty" : ""}"></i>`).join("");
+    const pipCount = Math.min(20, weapon.ammo);
+    const filledPips = Math.ceil(player.ammo / weapon.ammo * pipCount);
+    ui.ammoPips.innerHTML = Array.from({ length: pipCount }, (_, i) => `<i class="${i >= filledPips ? "empty" : ""}" style="background:${i >= filledPips ? "" : weapon.color}"></i>`).join("");
   }
 
   function showToast(text) {
