@@ -3,7 +3,15 @@
 const TarkovModel = (() => {
   const W = 480;
   const H = 720;
-  const WORLD_GOAL = 5000;
+  const MAP_LENGTH = 5000;
+  const MAPS = [
+    { name: "ЭПИЦЕНТР", difficulty: "ЛЕГКО", image: "ground-zero.png", deathTexts: ["Тебя не дождались у выхода из Эпицентра.", "Первый район оказался последним.", "Эпицентр забрал ещё одного бойца."], gap: [68, 100], step: 145, enemyChance: .09, enemyHp: 1, fireRate: 1 },
+    { name: "ТАМОЖНЯ", difficulty: "НОРМАЛЬНО", image: "customs.png", deathTexts: ["Рейд на Таможне закончился раньше эвакуации.", "Ты не прошёл через таможенный кордон.", "Выход с Таможни остался закрыт."], gap: [72, 104], step: 152, enemyChance: .12, enemyHp: 1, fireRate: .9 },
+    { name: "РАЗВЯЗКА", difficulty: "СЛОЖНО", image: "interchange.png", deathTexts: ["Ты остался в тёмных коридорах Развязки.", "Эвакуация затерялась среди пустых витрин.", "Развязка не отпустила тебя наружу."], gap: [76, 108], step: 160, enemyChance: .15, enemyHp: 2, fireRate: .8 },
+    { name: "РЕЗЕРВ", difficulty: "ОЧЕНЬ СЛОЖНО", image: "reserve.png", deathTexts: ["Бункеры Резерва стали твоей последней точкой.", "Сигнал эвакуации на Резерве так и не прозвучал.", "Подземелья Резерва скрыли следы рейда."], gap: [80, 112], step: 168, enemyChance: .19, enemyHp: 2, fireRate: .7 },
+    { name: "ЛАБОРАТОРИЯ", difficulty: "ЭКСПЕРТ", image: "the-lab.png", deathTexts: ["Лаборатория не оставила следов твоего отряда.", "Эксперимент завершён. Выживших нет.", "Герметичные двери Лаборатории не открылись."], gap: [84, 116], step: 176, enemyChance: .23, enemyHp: 3, fireRate: .6 }
+  ];
+  const WORLD_GOAL = MAP_LENGTH * MAPS.length;
   const WEAPONS = {
     rifle: { name: "АВТОМАТ", ammo: 12, reload: 1.1, cooldown: .15, pellets: 1, speed: 540, climb: -210, recoil: 15, color: "#a6a98c" },
     shotgun: { name: "ДРОБОВИК", ammo: 6, reload: 1.35, cooldown: .62, pellets: 7, speed: 470, climb: -185, spread: 155, recoil: 38, color: "#bd9459" },
@@ -19,6 +27,7 @@ const TarkovModel = (() => {
   function overlaps(a, b) { return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y; }
   function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
   function rand(a, b) { return a + Math.random() * (b - a); }
+  function getMap(distance) { return MAPS[Math.min(MAPS.length - 1, Math.floor(Math.max(0, distance) / MAP_LENGTH))]; }
 
 
   function create({ beep = () => {}, showToast = () => {}, onEnd = () => {}, enemyInvincibility = false } = {}) {
@@ -37,6 +46,7 @@ const TarkovModel = (() => {
     let nextWeaponDrop = 1350;
     let equipmentDropIndex = 0;
     let nextEquipmentDrop = 520;
+    let mapIndex = 0;
 
     let player;
     let platforms = [];
@@ -77,6 +87,7 @@ const TarkovModel = (() => {
       nextWeaponDrop = 1350;
       equipmentDropIndex = 0;
       nextEquipmentDrop = 520;
+      mapIndex = 0;
       nextPlatformY = H - 60;
 
       platforms.push({ x: W / 2 - 65, y: H - 55, w: 130, h: 15, type: "start", broken: false, seed: 1 });
@@ -94,8 +105,9 @@ const TarkovModel = (() => {
 
     function spawnPlatform(y, previousX) {
       const progress = Math.max(0, -y + cameraY);
+      const map = getMap(score);
       const width = rand(72, 118);
-      const maxStep = progress > 1800 ? 175 : 145;
+      const maxStep = map.step;
       let center = clamp(previousX + rand(-maxStep, maxStep), width / 2 + 12, W - width / 2 - 12);
       let type = "normal";
       const roll = Math.random();
@@ -110,8 +122,8 @@ const TarkovModel = (() => {
       };
       platforms.push(platform);
 
-      if (progress > 700 && Math.random() < Math.min(.09 + progress / 25000, .24) && type !== "fragile") {
-        const enemyHp = progress > 3200 ? 2 : 1;
+      if (progress > 700 && Math.random() < map.enemyChance && type !== "fragile") {
+        const enemyHp = map.enemyHp;
         enemies.push({
           x: platform.x + platform.w / 2 - 15, y: y - 43, w: 30, h: 43,
           hp: enemyHp, maxHp: enemyHp, hitFlash: 0,
@@ -250,9 +262,16 @@ const TarkovModel = (() => {
         while (nextPlatformY > -110) {
           const top = platforms.filter(p => !p.broken).sort((a, b) => a.y - b.y)[0];
           const prevCenter = top ? top.x + top.w / 2 : W / 2;
-          nextPlatformY -= rand(score > 2500 ? 78 : 68, score > 2500 ? 112 : 100);
+          const map = getMap(score);
+          nextPlatformY -= rand(map.gap[0], map.gap[1]);
           spawnPlatform(nextPlatformY, prevCenter);
         }
+      }
+
+      const nextMapIndex = Math.min(MAPS.length - 1, Math.floor(score / MAP_LENGTH));
+      if (nextMapIndex !== mapIndex) {
+        mapIndex = nextMapIndex;
+        showToast(`${MAPS[mapIndex].name} // ${MAPS[mapIndex].difficulty}`);
       }
 
       updateBullets(dt);
@@ -382,7 +401,7 @@ const TarkovModel = (() => {
         if (e.cooldown <= 0 && Math.abs(dx) < 290 && Math.abs(dy) < 350) {
           const len = Math.hypot(dx, dy) || 1;
           bullets.push({ x: e.x + e.w / 2, y: e.y + 18, w: 4, h: 4, vx: dx / len * 250, vy: dy / len * 250, friendly: false, life: 2 });
-          e.cooldown = rand(1.45, 2.5);
+          e.cooldown = rand(1.45, 2.5) * getMap(score).fireRate;
           beep(75, .055, "sawtooth", .02);
         }
         if (player.invuln <= 0 && overlaps(player, e)) damagePlayer(24);
@@ -483,7 +502,7 @@ const TarkovModel = (() => {
       }
     };
   }
-  return { create, W, H, WORLD_GOAL, WEAPONS, EQUIPMENT };
+  return { create, getMap, W, H, MAP_LENGTH, MAPS, WORLD_GOAL, WEAPONS, EQUIPMENT };
 })();
 
 if (typeof module !== "undefined") module.exports = TarkovModel;

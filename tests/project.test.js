@@ -52,6 +52,22 @@ test("model runs without browser APIs, pauses, jumps, shoots and resets", () => 
   assert.equal(game.snapshot.gameTime, 0);
 });
 
+test("maps advance every 5000 units in difficulty order", () => {
+  assert.equal(model.MAP_LENGTH, 5000);
+  assert.equal(model.WORLD_GOAL, model.MAP_LENGTH * model.MAPS.length);
+  assert.deepEqual(model.MAPS.map(map => map.name), ["ЭПИЦЕНТР", "ТАМОЖНЯ", "РАЗВЯЗКА", "РЕЗЕРВ", "ЛАБОРАТОРИЯ"]);
+  assert.equal(model.getMap(0), model.MAPS[0]);
+  assert.equal(model.getMap(4999), model.MAPS[0]);
+  assert.equal(model.getMap(5000), model.MAPS[1]);
+  assert.equal(model.getMap(24999), model.MAPS[4]);
+  assert.equal(model.getMap(99999), model.MAPS[4]);
+  assert.ok(model.MAPS.every(map => map.deathTexts.length > 1 && map.deathTexts.every(Boolean)));
+  for (let i = 1; i < model.MAPS.length; i++) {
+    assert.ok(model.MAPS[i].enemyChance > model.MAPS[i - 1].enemyChance);
+    assert.ok(model.MAPS[i].gap[0] > model.MAPS[i - 1].gap[0]);
+  }
+});
+
 test("equipment protection, degradation and enemy invincibility are preserved", () => {
   const game = model.create();
   game.startGame();
@@ -100,7 +116,7 @@ function request(url) {
 }
 
 test("server serves only public assets and handles malformed URLs", async () => {
-  for (const [url, type] of [["/", "text/html"], ["/index.html", "text/html"], ["/styles.css", "text/css"], ["/game.js?v=1", "text/javascript"], ["/game-model.js", "text/javascript"], ["/storage.js", "text/javascript"]]) {
+  for (const [url, type] of [["/", "text/html"], ["/index.html", "text/html"], ["/styles.css", "text/css"], ["/game.js?v=1", "text/javascript"], ["/game-model.js", "text/javascript"], ["/storage.js", "text/javascript"], ["/assets/maps/ground-zero.png", "image/png"]]) {
     const response = await request(url);
     assert.equal(response.status, 200, url);
     assert.ok(response.headers["Content-Type"].startsWith(type));

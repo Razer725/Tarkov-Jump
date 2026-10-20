@@ -25,8 +25,9 @@
             <strong><span id="scoreValue">0</span> M</strong>
           </div>
           <div class="hud-box hud-box--center">
-            <small>РЕЙД</small>
+            <small id="mapName">ЭПИЦЕНТР</small>
             <strong id="raidTime">00:00</strong>
+            <small id="mapDifficulty">ЛЕГКО</small>
           </div>
           <div class="hud-box hud-box--right">
             <small>РЕКОРД</small>
@@ -110,6 +111,14 @@
         <button data-control="shoot" class="mobile-controls__shoot" aria-label="Огонь">●</button>
       </div>
     </section>
+
+    <div hidden aria-hidden="true">
+      <img id="map-ground-zero.png" src="assets/maps/ground-zero.png" alt="" />
+      <img id="map-customs.png" src="assets/maps/customs.png" alt="" />
+      <img id="map-interchange.png" src="assets/maps/interchange.png" alt="" />
+      <img id="map-reserve.png" src="assets/maps/reserve.png" alt="" />
+      <img id="map-the-lab.png" src="assets/maps/the-lab.png" alt="" />
+    </div>
 
     <footer>
       <span>ESC — ПАУЗА</span>

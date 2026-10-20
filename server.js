@@ -11,7 +11,12 @@ const publicFiles = {
   "/styles.css": ["styles.css", "text/css; charset=utf-8"],
   "/storage.js": ["storage.js", "text/javascript; charset=utf-8"],
   "/game-model.js": ["game-model.js", "text/javascript; charset=utf-8"],
-  "/game.js": ["game.js", "text/javascript; charset=utf-8"]
+  "/game.js": ["game.js", "text/javascript; charset=utf-8"],
+  "/assets/maps/ground-zero.png": ["assets/maps/ground-zero.png", "image/png"],
+  "/assets/maps/customs.png": ["assets/maps/customs.png", "image/png"],
+  "/assets/maps/interchange.png": ["assets/maps/interchange.png", "image/png"],
+  "/assets/maps/reserve.png": ["assets/maps/reserve.png", "image/png"],
+  "/assets/maps/the-lab.png": ["assets/maps/the-lab.png", "image/png"]
 };
 
 function handleRequest(request, response) {

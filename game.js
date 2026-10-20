@@ -11,6 +11,8 @@
     score: document.getElementById("scoreValue"),
     best: document.getElementById("bestValue"),
     time: document.getElementById("raidTime"),
+    map: document.getElementById("mapName"),
+    difficulty: document.getElementById("mapDifficulty"),
     health: document.getElementById("healthValue"),
     healthBar: document.getElementById("healthBar"),
     ammo: document.getElementById("ammoValue"),
@@ -28,7 +30,8 @@
     enemyInvincibility: document.getElementById("enemyInvincibility")
   };
 
-  const { W, H, WORLD_GOAL, WEAPONS, EQUIPMENT } = TarkovModel;
+  const { W, H, WORLD_GOAL, MAPS, WEAPONS, EQUIPMENT } = TarkovModel;
+  const mapImages = MAPS.map(map => document.getElementById(`map-${map.image}`));
   const storage = TarkovStorage.create(() => window.localStorage);
   const storedBest = Number(storage.get("tarkovJumpBest", "0"));
   let best = Number.isFinite(storedBest) && storedBest >= 0 ? storedBest : 0;
@@ -74,7 +77,8 @@
     ui.finalKills.textContent = kills;
     ui.finalLoot.textContent = loot;
     ui.endTitle.textContent = extracted ? "ЭВАКУАЦИЯ" : "БОЕЦ ПОТЕРЯН";
-    ui.endText.textContent = extracted ? "Груз принят. Рейд завершён успешно." : "Снаряжение осталось в промзоне.";
+    const deathTexts = TarkovModel.getMap(score).deathTexts;
+    ui.endText.textContent = extracted ? "Груз принят. Рейд завершён успешно." : deathTexts[Math.floor(Math.random() * deathTexts.length)];
     ui.over.classList.add("screen--visible");
     ui.hud.classList.remove("active");
   }
@@ -102,32 +106,43 @@
     }
 
     function drawBackground() {
-      const g = ctx.createLinearGradient(0, 0, 0, H);
-      g.addColorStop(0, score > 3700 ? "#25291e" : "#1c211c");
-      g.addColorStop(.55, "#151a16");
-      g.addColorStop(1, "#0d110e");
-      ctx.fillStyle = g;
-      ctx.fillRect(0, 0, W, H);
-
-      ctx.fillStyle = "rgba(4,7,5,.52)";
-      const parallax = (cameraY * .08) % 130;
-      for (let i = -1; i < 6; i++) {
-        const x = i * 105 - 25;
-        const height = 155 + ((i * 47) % 105);
-        ctx.fillRect(x, H - height + parallax, 82, height + 50);
-        ctx.fillRect(x + 13, H - height - 20 + parallax, 8, 20);
-        for (let wy = H - height + 25 + parallax; wy < H; wy += 38) {
-          ctx.fillStyle = "rgba(119,124,88,.055)";
-          ctx.fillRect(x + 13, wy, 13, 8);
-          ctx.fillRect(x + 47, wy, 13, 8);
-          ctx.fillStyle = "rgba(4,7,5,.52)";
-        }
+      const mapIndex = MAPS.indexOf(TarkovModel.getMap(score));
+      const image = mapImages[mapIndex];
+      const hasImage = image && image.complete && image.naturalWidth;
+      if (hasImage) {
+        ctx.drawImage(image, 0, 0, W, H);
+        ctx.fillStyle = "rgba(5,8,6,.45)";
+        ctx.fillRect(0, 0, W, H);
+      } else {
+        const g = ctx.createLinearGradient(0, 0, 0, H);
+        g.addColorStop(0, mapIndex > 2 ? "#25291e" : "#1c211c");
+        g.addColorStop(.55, "#151a16");
+        g.addColorStop(1, "#0d110e");
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, W, H);
       }
-      ctx.strokeStyle = "rgba(119,124,91,.075)";
-      ctx.lineWidth = 1;
-      for (let i = 0; i < 7; i++) {
-        const y = ((i * 117 + cameraY * .15) % (H + 120)) - 60;
-        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y - 35); ctx.stroke();
+
+      if (!hasImage) {
+        ctx.fillStyle = "rgba(4,7,5,.52)";
+        const parallax = (cameraY * .08) % 130;
+        for (let i = -1; i < 6; i++) {
+          const x = i * 105 - 25;
+          const height = 155 + ((i * 47) % 105);
+          ctx.fillRect(x, H - height + parallax, 82, height + 50);
+          ctx.fillRect(x + 13, H - height - 20 + parallax, 8, 20);
+          for (let wy = H - height + 25 + parallax; wy < H; wy += 38) {
+            ctx.fillStyle = "rgba(119,124,88,.055)";
+            ctx.fillRect(x + 13, wy, 13, 8);
+            ctx.fillRect(x + 47, wy, 13, 8);
+            ctx.fillStyle = "rgba(4,7,5,.52)";
+          }
+        }
+        ctx.strokeStyle = "rgba(119,124,91,.075)";
+        ctx.lineWidth = 1;
+        for (let i = 0; i < 7; i++) {
+          const y = ((i * 117 + cameraY * .15) % (H + 120)) - 60;
+          ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y - 35); ctx.stroke();
+        }
       }
       for (const b of backgroundBits) {
         ctx.fillStyle = `rgba(194,197,166,${b.a})`;
@@ -361,6 +376,9 @@
     if (!player) return;
     setHUD(ui.score, "textContent", Math.floor(score));
     setHUD(ui.time, "textContent", formatTime(gameTime));
+    const map = TarkovModel.getMap(score);
+    setHUD(ui.map, "textContent", map.name);
+    setHUD(ui.difficulty, "textContent", map.difficulty);
     setHUD(ui.health, "textContent", Math.max(0, Math.ceil(player.health)));
     setHUD(ui.healthBar.style, "width", `${Math.max(0, player.health)}%`);
     setHUD(ui.healthBar.style, "background", player.health < 35 ? "#a64b3c" : "#afb28d");
